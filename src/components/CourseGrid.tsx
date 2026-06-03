@@ -4,6 +4,7 @@ import React from 'react';
 import { Course } from '@/types/database.types';
 import * as Icons from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 
 interface CourseGridProps {
   courses: Course[];
@@ -13,6 +14,12 @@ type IconName = keyof typeof Icons;
 
 export function CourseGrid({ courses }: CourseGridProps) {
   const shouldReduceMotion = useReducedMotion();
+  const router = useRouter();
+
+  // State for AI generator tile
+  const [topic, setTopic] = React.useState('');
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [error, setError] = React.useState('');
 
   // Framer Motion container variants for staggered child entrance
   const activeContainerVariants = {
@@ -55,15 +62,106 @@ export function CourseGrid({ courses }: CourseGridProps) {
 
   const hoverAnimation = shouldReduceMotion ? {} : { scale: 1.015, y: -2 };
 
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!topic.trim()) return;
+
+    setIsGenerating(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/courses/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: topic.trim() }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate course');
+      }
+
+      setTopic('');
+      router.refresh(); // Refresh page data to show new course
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   if (courses.length === 0) {
     return (
-      <section className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-[#09090b]/40 p-12 text-center">
-        <Icons.BookOpen size={48} className="text-slate-600 mb-4" />
-        <h3 className="text-lg font-bold text-white mb-2">No courses found</h3>
-        <p className="text-sm text-slate-400 max-w-sm">
-          Your database courses table is currently empty. Populate some rows in your Supabase database to see them here.
-        </p>
-      </section>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center rounded-3xl border border-white/5 bg-[#09090b]/40 p-8 md:p-12 relative overflow-hidden">
+        {/* Decorative background glow */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl -z-10 pointer-events-none" />
+        
+        <div className="space-y-4">
+          <div className="p-3 w-fit rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
+            <Icons.BookOpen size={32} className="text-indigo-400" />
+          </div>
+          <h3 className="text-2xl font-extrabold text-white">Your study board is empty</h3>
+          <p className="text-sm text-slate-400 max-w-md leading-relaxed">
+            Welcome to Academia! You don't have any active courses yet. Enter a topic you want to study on the right, and our AI will build a complete structured curriculum for you instantly.
+          </p>
+        </div>
+
+        <motion.div
+          variants={activeCardVariants}
+          initial="hidden"
+          animate="show"
+          className="rounded-3xl border border-dashed border-indigo-500/30 bg-indigo-500/5 p-6 md:p-8 relative overflow-hidden group hover:border-indigo-400/50 transition-colors duration-300"
+        >
+          <div className="relative z-10 flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                  <Icons.Sparkles size={20} className="text-indigo-400 animate-pulse" />
+                </div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded-full">
+                  AI Powered
+                </span>
+              </div>
+              <h3 className="font-extrabold text-white text-lg leading-snug">
+                Generate Course
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Let AI build a personalized curriculum and syllabus for any topic you want to master.
+              </p>
+            </div>
+
+            <form onSubmit={handleGenerate} className="mt-6 space-y-3">
+              <input
+                type="text"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="e.g., Advanced React Hooks"
+                disabled={isGenerating}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+              />
+              {error && <p className="text-[10px] text-rose-400 font-semibold">{error}</p>}
+              <button
+                type="submit"
+                disabled={isGenerating || !topic.trim()}
+                className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all duration-200 shadow-md shadow-indigo-500/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isGenerating ? (
+                  <>
+                    <Icons.Loader2 size={12} className="animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Icons.Sparkles size={12} />
+                    Generate Syllabus
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </motion.div>
+      </div>
     );
   }
 
@@ -162,6 +260,63 @@ export function CourseGrid({ courses }: CourseGridProps) {
           </motion.article>
         );
       })}
+
+      {/* AI Course Generator Bento Card */}
+      <motion.article
+        variants={activeCardVariants}
+        whileHover={hoverAnimation}
+        transition={activeTransition}
+        className="rounded-3xl border border-dashed border-indigo-500/30 bg-indigo-500/5 p-6 flex flex-col justify-between relative overflow-hidden group hover:border-indigo-400/50 transition-colors duration-300 md:col-span-1 h-full"
+      >
+        <div className="relative z-10 flex flex-col justify-between h-full">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                <Icons.Sparkles size={20} className="text-indigo-400 animate-pulse" />
+              </div>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded-full">
+                AI Powered
+              </span>
+            </div>
+            <h3 className="font-extrabold text-white text-lg leading-snug">
+              Generate Course
+            </h3>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              Build a custom syllabus for any topic and get immediate learning materials.
+            </p>
+          </div>
+
+          <form onSubmit={handleGenerate} className="mt-4 space-y-2">
+            <input
+              type="text"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="e.g., Advanced React Hooks"
+              disabled={isGenerating}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+            />
+            {error && <p className="text-[10px] text-rose-400 font-semibold">{error}</p>}
+            <button
+              type="submit"
+              disabled={isGenerating || !topic.trim()}
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-xs py-2 px-4 rounded-xl transition-all duration-200 shadow-md shadow-indigo-500/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {isGenerating ? (
+                <>
+                  <Icons.Loader2 size={12} className="animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Icons.Sparkles size={12} />
+                  Generate Syllabus
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      </motion.article>
     </motion.section>
   );
 }
+

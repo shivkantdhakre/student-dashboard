@@ -2,6 +2,7 @@ import { Navigation } from "@/components/Navigation";
 import { User, LogOut } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 import { logout } from "../(auth)/login/actions";
+import { AICopilot } from "@/components/AICopilot";
 
 export default async function DashboardLayout({
   children,
@@ -12,6 +13,12 @@ export default async function DashboardLayout({
   const { data: { user } } = await supabase.auth.getUser();
 
   const email = user?.email || 'Student';
+
+  // Fetch initial courses for AI Copilot context selection
+  const { data: courses } = await supabase
+    .from('courses')
+    .select('*')
+    .order('created_at', { ascending: true });
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col-reverse md:flex-row bg-[#030303] text-slate-100 font-sans">
@@ -56,6 +63,10 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
+
+      {/* AI Floating Chat Copilot */}
+      <AICopilot initialCourses={courses || []} />
     </div>
   );
 }
+
