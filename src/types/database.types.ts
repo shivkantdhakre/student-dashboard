@@ -15,6 +15,15 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface CourseMaterial {
+  id: string; // uuid, primary key
+  course_id: string; // uuid referencing courses
+  content: string; // text
+  embedding: number[]; // vector(768) represented as number array
+  metadata: any; // jsonb
+  created_at: string; // timestamptz
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -32,6 +41,15 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Profile>;
+      };
+      course_materials: {
+        Row: CourseMaterial;
+        Insert: Omit<CourseMaterial, 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+          metadata?: any;
+        };
+        Update: Partial<CourseMaterial>;
       };
     };
   };
