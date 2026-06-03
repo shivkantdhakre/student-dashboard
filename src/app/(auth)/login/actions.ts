@@ -2,14 +2,21 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
-
-// Helper to resolve absolute callback URL dynamically from headers
+// Helper to resolve absolute callback URL dynamically from environment variables
 async function getCallbackUrl() {
-  const headerStore = await headers();
-  const host = headerStore.get('host') || 'localhost:3000';
-  const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
-  return `${protocol}://${host}/auth/callback`;
+  // Use Vercel's provided URL in prod/preview, fallback to localhost
+  let url =
+    process?.env?.NEXT_PUBLIC_SITE_URL ?? 
+    process?.env?.NEXT_PUBLIC_VERCEL_URL ?? 
+    'http://localhost:3000';
+
+  // Ensure it includes https:// if running on Vercel
+  url = url.startsWith('http') ? url : `https://${url}`;
+  
+  // Remove trailing slash if present
+  url = url.charAt(url.length - 1) === '/' ? url.slice(0, -1) : url;
+  
+  return `${url}/auth/callback`;
 }
 
 export interface AuthActionResponse {

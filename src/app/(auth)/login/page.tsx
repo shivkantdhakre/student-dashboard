@@ -27,17 +27,17 @@ export default function LoginPage() {
   // React 19 form actions using useActionState
   const [signInState, signInAction, isSignInPending] = useActionState(
     loginWithEmail, 
-    null
+    {}
   );
   
   const [signUpState, signUpAction, isSignUpPending] = useActionState(
     signupWithEmail, 
-    null
+    {}
   );
   
   const [magicLinkState, magicLinkAction, isMagicLinkPending] = useActionState(
     loginWithMagicLink, 
-    null
+    {}
   );
 
   const [isGooglePending, setIsGooglePending] = useState(false);
