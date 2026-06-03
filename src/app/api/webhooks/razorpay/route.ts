@@ -105,34 +105,18 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: 'Failed to record transaction' }, { status: 500 });
         }
 
-        // Fetch user profile credits
-        const { data: profile, error: fetchError } = await supabaseAdmin
-          .from('profiles')
-          .select('ai_credits_remaining')
-          .eq('id', userId)
-          .single();
+        // Atomically increment user credits and retrieve the new balance
+        const { data: newCredits, error: rpcError } = await supabaseAdmin.rpc('increment_credits', {
+          user_id: userId,
+          amount: 100,
+        });
 
-        if (fetchError || !profile) {
-          console.error('Webhook failed to fetch profile for fallback:', fetchError);
-          return NextResponse.json({ error: 'Profile not found' }, { status: 500 });
-        }
-
-        const currentCredits = profile.ai_credits_remaining ?? 0;
-        const newCredits = currentCredits + 100;
-
-        const { error: updateError } = await supabaseAdmin
-          .from('profiles')
-          .update({ 
-            ai_credits_remaining: newCredits 
-          })
-          .eq('id', userId);
-
-        if (updateError) {
-          console.error('Webhook fallback failed to update credits:', updateError);
+        if (rpcError) {
+          console.error('Webhook fallback failed to update credits RPC:', rpcError);
           return NextResponse.json({ error: 'Failed to update credits' }, { status: 500 });
         }
 
-        console.log(`Webhook Fallback: Successfully credited 100 AI credits to user ${userId} for order ${orderId}.`);
+        console.log(`Webhook Fallback: Successfully credited 100 AI credits to user ${userId} for order ${orderId} (New Total: ${newCredits}).`);
       } else {
         console.warn('Order paid event missing user_id note or order_id:', orderId);
       }

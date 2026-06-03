@@ -76,34 +76,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to record transaction' }, { status: 500 });
     }
 
-    // Fetch existing credits
-    const { data: profile, error: fetchError } = await supabaseAdmin
-      .from('profiles')
-      .select('ai_credits_remaining')
-      .eq('id', user.id)
-      .single();
+    // Atomically increment user credits and retrieve the new balance
+    const { data: newCredits, error: rpcError } = await supabaseAdmin.rpc('increment_credits', {
+      user_id: user.id,
+      amount: 100,
+    });
 
-    if (fetchError || !profile) {
-      console.error('Failed to fetch profile in verification:', fetchError);
-      return NextResponse.json({ error: 'Profile not found' }, { status: 500 });
-    }
-
-    const currentCredits = profile.ai_credits_remaining ?? 0;
-    const newCredits = currentCredits + 100; // Add 100 credits for one-time pack purchase
-
-    const { error: updateError } = await supabaseAdmin
-      .from('profiles')
-      .update({ 
-        ai_credits_remaining: newCredits 
-      })
-      .eq('id', user.id);
-
-    if (updateError) {
-      console.error('Failed to update credits in verification:', updateError);
+    if (rpcError) {
+      console.error('Failed to increment credits in verification RPC:', rpcError);
       return NextResponse.json({ error: 'Failed to apply credits' }, { status: 500 });
     }
 
-    console.log(`Successfully verified payment for user ${user.id} and added 100 credits.`);
+    console.log(`Successfully verified payment for user ${user.id} and added 100 credits (New Total: ${newCredits}).`);
 
     return NextResponse.json({ success: true, newCredits });
   } catch (error: any) {

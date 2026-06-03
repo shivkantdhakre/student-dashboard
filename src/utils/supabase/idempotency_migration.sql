@@ -17,3 +17,18 @@ CREATE POLICY "Users can read their own processed orders" ON public.processed_or
 DROP POLICY IF EXISTS "System can insert processed orders" ON public.processed_orders;
 CREATE POLICY "System can insert processed orders" ON public.processed_orders
   FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Create a function to atomically increment AI credits and return the new balance
+CREATE OR REPLACE FUNCTION public.increment_credits(user_id uuid, amount int)
+RETURNS int AS $$
+DECLARE
+  new_balance int;
+BEGIN
+  UPDATE public.profiles
+  SET ai_credits_remaining = COALESCE(ai_credits_remaining, 0) + amount
+  WHERE id = user_id
+  RETURNING ai_credits_remaining INTO new_balance;
+  
+  RETURN new_balance;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
