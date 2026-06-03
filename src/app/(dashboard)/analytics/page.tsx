@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { generateText } from 'ai';
 import { google } from '@/utils/google';
 import * as Icons from 'lucide-react';
+import { Suspense } from 'react';
 
 
 export const revalidate = 0; // Disable static caching to fetch fresh data and recommendations
@@ -44,28 +45,6 @@ export default async function AnalyticsPage() {
 
   const aiCredits = profile?.ai_credits_remaining ?? 0;
   const emailName = user.email ? user.email.split('@')[0] : 'Student';
-
-  // 4. Generate AI academic recommendation summary (Server-side RAG/Context feed)
-  let aiSummary = "Create or generate a course syllabus on your dashboard to receive personalized AI recommendations and study milestones.";
-  
-  if (totalCourses > 0) {
-    const coursesListText = activeCourses.map(c => `- ${c.title}: ${c.progress}% progress`).join('\n');
-    try {
-      const response = await generateText({
-        model: google('gemini-2.5-flash'),
-        prompt: `You are a smart personal academic learning advisor. Analyze the progress of this student:
-Student Name: ${emailName}
-Courses list and progress:
-${coursesListText}
-
-Generate a short, friendly, and actionable study recommendation (exactly 2-3 sentences). Address the student directly by their name. Mention specific courses where they have stalled or are making good progress, and suggest a precise task for today (e.g. recommend spending 15 minutes reviewing a specific course topic). Tone should be premium, modern, and highly encouraging. Return ONLY the plain text sentences. No markdown formatting, asterisks, or quotes.`,
-      });
-      aiSummary = response.text.trim();
-    } catch (error) {
-      console.error('Failed to generate AI analytics summary:', error);
-      aiSummary = `Hey ${emailName}, you are currently managing ${totalCourses} courses with an average progress of ${avgProgress}%. Keep reviewing your syllabus materials daily and ask the Study Copilot if you have any questions!`;
-    }
-  }
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
@@ -126,26 +105,15 @@ Generate a short, friendly, and actionable study recommendation (exactly 2-3 sen
         </div>
       </div>
 
-      {/* AI Personal Advisor Recommendations Card */}
-      <div className="rounded-3xl border border-indigo-500/20 bg-gradient-to-r from-indigo-950/20 via-slate-950/10 to-purple-950/20 p-6 md:p-8 relative overflow-hidden shadow-lg shadow-indigo-950/10">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -z-10 pointer-events-none" />
-        <div className="flex flex-col md:flex-row gap-6 items-start">
-          <div className="p-4 bg-indigo-600/15 border border-indigo-500/30 rounded-2xl text-indigo-400 shrink-0">
-            <Icons.Sparkles size={28} className="animate-pulse" />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded-full">
-                AI Personal Advisor
-              </span>
-            </div>
-            <h3 className="text-xl font-extrabold text-white">Daily Study Recommendations</h3>
-            <p className="text-slate-300 text-sm md:text-base leading-relaxed font-medium">
-              "{aiSummary}"
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* AI Personal Advisor Recommendations Card - Wrapped in Suspense */}
+      <Suspense fallback={<AIAdvisorCardFallback />}>
+        <AIAdvisorCard 
+          emailName={emailName}
+          activeCourses={activeCourses}
+          totalCourses={totalCourses}
+          avgProgress={avgProgress}
+        />
+      </Suspense>
 
       {/* Course Breakdown Chart/List */}
       <div className="rounded-3xl border border-white/5 bg-[#09090b]/40 p-6 md:p-8 space-y-6">
@@ -203,6 +171,83 @@ Generate a short, friendly, and actionable study recommendation (exactly 2-3 sen
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Separate asynchronous component for lazy loading/streaming AI advice
+async function AIAdvisorCard({
+  emailName,
+  activeCourses,
+  totalCourses,
+  avgProgress,
+}: {
+  emailName: string;
+  activeCourses: any[];
+  totalCourses: number;
+  avgProgress: number;
+}) {
+  let aiSummary = "Create or generate a course syllabus on your dashboard to receive personalized AI recommendations and study milestones.";
+
+  if (totalCourses > 0) {
+    const coursesListText = activeCourses.map(c => `- ${c.title}: ${c.progress}% progress`).join('\n');
+    try {
+      const response = await generateText({
+        model: google('gemini-2.5-flash'),
+        prompt: `You are a smart personal academic learning advisor. Analyze the progress of this student:
+Student Name: ${emailName}
+Courses list and progress:
+${coursesListText}
+
+Generate a short, friendly, and actionable study recommendation (exactly 2-3 sentences). Address the student directly by their name. Mention specific courses where they have stalled or are making good progress, and suggest a precise task for today (e.g. recommend spending 15 minutes reviewing a specific course topic). Tone should be premium, modern, and highly encouraging. Return ONLY the plain text sentences. No markdown formatting, asterisks, or quotes.`,
+      });
+      aiSummary = response.text.trim();
+    } catch (error) {
+      console.error('Failed to generate AI analytics summary:', error);
+      aiSummary = `Hey ${emailName}, you are currently managing ${totalCourses} courses with an average progress of ${avgProgress}%. Keep reviewing your syllabus materials daily and ask the Study Copilot if you have any questions!`;
+    }
+  }
+
+  return (
+    <div className="rounded-3xl border border-indigo-500/20 bg-gradient-to-r from-indigo-950/20 via-slate-950/10 to-purple-950/20 p-6 md:p-8 relative overflow-hidden shadow-lg shadow-indigo-950/10">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -z-10 pointer-events-none" />
+      <div className="flex flex-col md:flex-row gap-6 items-start">
+        <div className="p-4 bg-indigo-600/15 border border-indigo-500/30 rounded-2xl text-indigo-400 shrink-0">
+          <Icons.Sparkles size={28} className="animate-pulse" />
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded-full">
+              AI Personal Advisor
+            </span>
+          </div>
+          <h3 className="text-xl font-extrabold text-white">Daily Study Recommendations</h3>
+          <p className="text-slate-300 text-sm md:text-base leading-relaxed font-medium">
+            "{aiSummary}"
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Loading fallback skeleton for Suspense boundary
+function AIAdvisorCardFallback() {
+  return (
+    <div className="rounded-3xl border border-white/5 bg-[#09090b]/40 p-6 md:p-8 relative overflow-hidden shadow-lg animate-pulse">
+      <div className="flex flex-col md:flex-row gap-6 items-start">
+        <div className="p-4 bg-indigo-600/5 border border-indigo-500/10 rounded-2xl text-indigo-400/30 shrink-0">
+          <Icons.Sparkles size={28} />
+        </div>
+        <div className="space-y-2 flex-1 w-full">
+          <div className="h-4 bg-indigo-500/10 rounded-full w-24" />
+          <div className="h-6 bg-slate-800 rounded-lg w-48" />
+          <div className="space-y-2 pt-2">
+            <div className="h-3.5 bg-slate-800 rounded-full w-full" />
+            <div className="h-3.5 bg-slate-800 rounded-full w-5/6" />
+          </div>
+        </div>
       </div>
     </div>
   );

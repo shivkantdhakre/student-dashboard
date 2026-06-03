@@ -7,6 +7,28 @@ import { DefaultChatTransport } from 'ai';
 import { Course } from '@/types/database.types';
 import * as Icons from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+
+const markdownComponents: any = {
+  p: ({ children }: any) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+  strong: ({ children }: any) => <strong className="font-extrabold text-white">{children}</strong>,
+  em: ({ children }: any) => <em className="italic text-slate-300">{children}</em>,
+  ul: ({ children }: any) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
+  li: ({ children }: any) => <li className="text-slate-300">{children}</li>,
+  code: ({ node, className, children, ...props }: any) => {
+    return (
+      <code className="bg-white/10 px-1 py-0.5 rounded text-[10px] font-mono text-indigo-300" {...props}>
+        {children}
+      </code>
+    );
+  },
+  pre: ({ children }: any) => (
+    <pre className="bg-[#030303]/60 border border-white/5 p-3 rounded-xl overflow-x-auto my-2 font-mono text-[10px] text-slate-200">
+      {children}
+    </pre>
+  ),
+};
 
 interface AICopilotProps {
   initialCourses: Course[];
@@ -278,6 +300,13 @@ export function AICopilot({ initialCourses }: AICopilotProps) {
                       >
                         {message.parts.map((part: any, pIdx) => {
                           if (part.type === 'text') {
+                            if (isAI) {
+                              return (
+                                <ReactMarkdown key={pIdx} components={markdownComponents}>
+                                  {part.text}
+                                </ReactMarkdown>
+                              );
+                            }
                             return <span key={pIdx}>{part.text}</span>;
                           }
                           return null;

@@ -7,12 +7,31 @@ import { createClient } from '@/utils/supabase/server';
 function chunkText(text: string, chunkSize: number = 800, overlap: number = 100): string[] {
   const chunks: string[] = [];
   if (!text) return chunks;
-  
-  let i = 0;
-  while (i < text.length) {
-    chunks.push(text.slice(i, i + chunkSize));
-    if (i + chunkSize >= text.length) break;
-    i += chunkSize - overlap;
+
+  let startIndex = 0;
+  while (startIndex < text.length) {
+    let endIndex = startIndex + chunkSize;
+    
+    // Don't slice in the middle of a word; find the nearest space
+    if (endIndex < text.length) {
+      const spaceIndex = text.lastIndexOf(' ', endIndex);
+      if (spaceIndex > startIndex) {
+        endIndex = spaceIndex;
+      }
+    }
+    
+    const chunk = text.slice(startIndex, endIndex).trim();
+    if (chunk) {
+      chunks.push(chunk);
+    }
+    
+    // Move starting index back by the overlap amount (ensuring forward progress)
+    const nextIndex = endIndex - overlap;
+    if (nextIndex <= startIndex) {
+      startIndex = endIndex;
+    } else {
+      startIndex = nextIndex;
+    }
   }
   return chunks;
 }
