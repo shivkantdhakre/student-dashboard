@@ -79,7 +79,7 @@ export async function POST(req: Request) {
       
       for (const chunk of chunks) {
         const { embedding } = await embed({
-          model: google.textEmbeddingModel('text-embedding-004'),
+          model: google.textEmbeddingModel('gemini-embedding-2'),
           value: chunk,
         });
 

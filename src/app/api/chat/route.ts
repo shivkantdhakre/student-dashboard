@@ -3,7 +3,7 @@ import { google } from '@/utils/google';
 import { embed, streamText } from 'ai';
 
 import { createClient as createSupabaseServerClient } from '@/utils/supabase/server';
-import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js';
+
 
 export async function POST(req: Request) {
   try {
@@ -32,21 +32,9 @@ export async function POST(req: Request) {
     if (!course_id) {
       return NextResponse.json({ error: 'Course ID is required.' }, { status: 400 });
     }
-
-    // 3. Initialize Admin Client to verify credit balance and query database
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!serviceRoleKey) {
-      console.error('Missing SUPABASE_SERVICE_ROLE_KEY.');
-      return NextResponse.json({ error: 'Database service unavailable' }, { status: 500 });
-    }
-
-    const supabaseAdmin = createSupabaseAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      serviceRoleKey
-    );
-
+    // 3. Verify credit balance and query database using user authenticated client
     // Fetch user credits
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile, error: profileError } = await (supabase as any)
       .from('profiles')
       .select('ai_credits_remaining')
       .eq('id', user.id)
@@ -66,28 +54,43 @@ export async function POST(req: Request) {
     }
 
     // 4. Perform vector similarity search for course materials (RAG)
-    const latestMessage = messages[messages.length - 1].content;
+    const getMessageText = (msg: any): string => {
+      if (typeof msg.content === 'string') {
+        return msg.content;
+      }
+      if (Array.isArray(msg.content)) {
+        return msg.content.map((c: any) => (c.type === 'text' ? c.text : '')).join('\n');
+      }
+      if (Array.isArray(msg.parts)) {
+        return msg.parts.map((p: any) => (p.type === 'text' ? p.text : '')).join('\n');
+      }
+      return '';
+    };
+
+    const latestMessage = getMessageText(messages[messages.length - 1]);
     let contextText = 'No relevant course materials found.';
 
     try {
-      // Generate embedding vector for the user query (dimension 768)
-      const { embedding } = await embed({
-        model: google.textEmbeddingModel('text-embedding-004'),
-        value: latestMessage,
-      });
+      if (latestMessage.trim()) {
+        // Generate embedding vector for the user query (dimension 768)
+        const { embedding } = await embed({
+          model: google.textEmbeddingModel('gemini-embedding-2'),
+          value: latestMessage,
+        });
 
-      // Call database match function via RPC
-      const { data: matchedMaterials, error: matchError } = await supabaseAdmin.rpc('match_course_materials', {
-        query_embedding: embedding,
-        match_threshold: 0.3, // Similarity match threshold
-        match_count: 3,       // Return top 3 matched chunks
-        filter_course_id: course_id,
-      });
+        // Call database match function via RPC
+        const { data: matchedMaterials, error: matchError } = await (supabase as any).rpc('match_course_materials', {
+          query_embedding: embedding,
+          match_threshold: 0.3, // Similarity match threshold
+          match_count: 3,       // Return top 3 matched chunks
+          filter_course_id: course_id,
+        });
 
-      if (matchError) {
-        console.error('Error matching course materials vector:', matchError);
-      } else if (matchedMaterials && matchedMaterials.length > 0) {
-        contextText = matchedMaterials.map((m: any) => m.content).join('\n\n');
+        if (matchError) {
+          console.error('Error matching course materials vector:', matchError);
+        } else if (matchedMaterials && matchedMaterials.length > 0) {
+          contextText = matchedMaterials.map((m: any) => m.content).join('\n\n');
+        }
       }
     } catch (vectorError) {
       console.error('RAG vector retrieval failed:', vectorError);
@@ -99,14 +102,20 @@ export async function POST(req: Request) {
 Course Materials:
 ${contextText}`;
 
+    // Map message history to format expected by Vercel AI SDK streamText
+    const coreMessages = messages.map((msg: any) => ({
+      role: msg.role,
+      content: getMessageText(msg),
+    }));
+
     // 6. Stream completion using Vercel AI SDK & Google Gemini model
     const result = streamText({
       model: google('gemini-2.5-flash'),
-      messages,
+      messages: coreMessages,
       system: systemPrompt,
       onFinish: async () => {
         // Atomically deduct 1 AI credit on finish of stream
-        const { error: deductError } = await supabaseAdmin.rpc('increment_credits', {
+        const { error: deductError } = await (supabase as any).rpc('increment_credits', {
           user_id: user.id,
           amount: -1,
         });

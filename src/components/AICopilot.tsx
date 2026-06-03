@@ -33,14 +33,21 @@ export function AICopilot({ initialCourses }: AICopilotProps) {
   // Manage input field state locally for useChat compatibility
   const [inputValue, setInputValue] = useState('');
 
+  // Store selectedCourseId in a Ref to prevent stale closures in DefaultChatTransport body resolver
+  const selectedCourseIdRef = useRef(selectedCourseId);
+
+  useEffect(() => {
+    selectedCourseIdRef.current = selectedCourseId;
+  }, [selectedCourseId]);
 
   // Vercel AI SDK v6 requires transport configuration for endpoint details.
+  // We keep the transport reference stable and resolve selectedCourseId dynamically.
   const transport = React.useMemo(() => {
     return new DefaultChatTransport({
       api: '/api/chat',
-      body: {
-        course_id: selectedCourseId,
-      },
+      body: () => ({
+        course_id: selectedCourseIdRef.current,
+      }),
       fetch: async (input, init) => {
         const response = await fetch(input, init);
         if (response.status === 402 && setMessagesRef.current) {
@@ -56,7 +63,8 @@ export function AICopilot({ initialCourses }: AICopilotProps) {
         return response;
       }
     });
-  }, [selectedCourseId]);
+  }, []);
+
 
   const { messages, sendMessage, status, setMessages } = useChat({
     transport,

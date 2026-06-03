@@ -5,6 +5,7 @@ import { Course } from '@/types/database.types';
 import * as Icons from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface CourseGridProps {
   courses: Course[];
@@ -184,13 +185,13 @@ export function CourseGrid({ courses }: CourseGridProps) {
           : 'md:col-span-1 h-full';
 
         return (
-          <motion.article
-            key={course.id}
-            variants={activeCardVariants}
-            whileHover={hoverAnimation}
-            transition={activeTransition}
-            className={`rounded-3xl border border-white/5 bg-[#09090b]/40 p-6 flex flex-col justify-between relative overflow-hidden group hover:border-indigo-500/30 transition-colors duration-300 cursor-pointer ${gridSpan}`}
-          >
+          <Link href={`/courses/${course.id}`} key={course.id} className={gridSpan}>
+            <motion.article
+              variants={activeCardVariants}
+              whileHover={hoverAnimation}
+              transition={activeTransition}
+              className="rounded-3xl border border-white/5 bg-[#09090b]/40 p-6 flex flex-col justify-between relative overflow-hidden group hover:border-indigo-500/30 transition-colors duration-300 cursor-pointer h-full"
+            >
             {/* Subtle animated border glow backdrop */}
             {!shouldReduceMotion && (
               <motion.div 
@@ -258,7 +259,8 @@ export function CourseGrid({ courses }: CourseGridProps) {
               </div>
             </div>
           </motion.article>
-        );
+        </Link>
+      );
       })}
 
       {/* AI Course Generator Bento Card */}

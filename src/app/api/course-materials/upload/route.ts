@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { google } from '@ai-sdk/google';
+import { google } from '@/utils/google';
 import { embed } from 'ai';
+
 import { createClient } from '@/utils/supabase/server';
 
 function chunkText(text: string, chunkSize: number = 800, overlap: number = 100): string[] {
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
     
     for (const chunk of chunks) {
       const { embedding } = await embed({
-        model: google.textEmbeddingModel('text-embedding-004'),
+        model: google.textEmbeddingModel('gemini-embedding-2'),
         value: chunk,
       });
 
