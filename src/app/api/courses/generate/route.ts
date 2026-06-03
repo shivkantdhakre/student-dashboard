@@ -4,6 +4,8 @@ import { generateObject, embed } from 'ai';
 
 import { z } from 'zod';
 import { createClient } from '@/utils/supabase/server';
+import { isRateLimited } from '@/utils/ratelimit';
+import * as Sentry from '@sentry/nextjs';
 
 function chunkText(text: string, chunkSize: number = 800, overlap: number = 100): string[] {
   const chunks: string[] = [];
@@ -45,6 +47,35 @@ export async function POST(req: Request) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Rate Limiting Safeguard
+    const rateLimit = await isRateLimited(`course_gen:${user.id}`);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many queries. Please wait a minute before trying again.' },
+        { status: 429 }
+      );
+    }
+
+    // Credit Verification Safeguard
+    const { data: profile, error: profileError } = await (supabase as any)
+      .from('profiles')
+      .select('ai_credits_remaining')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.error('Failed to fetch profile credits:', profileError);
+      return NextResponse.json({ error: 'Profile not found' }, { status: 500 });
+    }
+
+    const credits = profile.ai_credits_remaining ?? 0;
+    if (credits < 2) {
+      return NextResponse.json(
+        { error: 'Insufficient credits. Generating a course syllabus requires at least 2 AI credits.' },
+        { status: 402 } // Payment Required
+      );
     }
 
     // 2. Parse request payload
@@ -121,8 +152,21 @@ export async function POST(req: Request) {
 
       if (insertError) {
         console.error('Failed to save generated course syllabus chunks:', insertError);
+        Sentry.captureException(insertError);
         // We continue because the course itself was created successfully
       }
+    }
+
+    // Deduct 2 credits for course generation
+    const { error: deductError } = await (supabase as any).rpc('increment_credits', {
+      user_id: user.id,
+      amount: -2,
+    });
+    if (deductError) {
+      console.error(`Failed to deduct credits for user ${user.id}:`, deductError);
+      Sentry.captureException(deductError);
+    } else {
+      console.log(`Deducted 2 credits for user ${user.id} course generation.`);
     }
 
     return NextResponse.json({
@@ -133,6 +177,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Course Generation Error:', error);
+    Sentry.captureException(error);
     return NextResponse.json({ error: error.message || 'Failed to generate course' }, { status: 500 });
   }
 }

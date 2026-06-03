@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import * as Icons from 'lucide-react';
 import Link from 'next/link';
+import { TrackClick } from '@/components/TrackClick';
 
 export const revalidate = 0; // Disable static caching to fetch fresh database entries
 
@@ -143,11 +144,15 @@ export default async function DashboardPage() {
                 const isDone = course.progress === 100;
 
                 return (
-                  <Link 
-                    href={`/courses/${course.id}`} 
+                  <TrackClick
                     key={course.id}
-                    className="block bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-indigo-500/20 hover:bg-white-[0.02] transition-all"
+                    eventName="bento_tile_clicked"
+                    properties={{ tile_id: 'recent_course', course_id: course.id }}
                   >
+                    <Link 
+                      href={`/courses/${course.id}`} 
+                      className="block bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-indigo-500/20 hover:bg-white-[0.02] transition-all"
+                    >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`p-2.5 rounded-xl shrink-0 ${isDone ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800 text-slate-300 border border-zinc-700'}`}>
                         <CourseIcon size={18} />
@@ -176,7 +181,8 @@ export default async function DashboardPage() {
                         </div>
                       </div>
                     </div>
-                  </Link>
+                    </Link>
+                  </TrackClick>
                 );
               })}
             </div>
@@ -200,13 +206,15 @@ export default async function DashboardPage() {
           </div>
 
           <div className="pt-6">
-            <Link 
-              href="/courses"
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/15"
-            >
-              <Icons.Plus size={12} />
-              Add New Course
-            </Link>
+            <TrackClick eventName="bento_tile_clicked" properties={{ tile_id: 'add_new_course_shortcut' }}>
+              <Link 
+                href="/courses"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/15"
+              >
+                <Icons.Plus size={12} />
+                Add New Course
+              </Link>
+            </TrackClick>
           </div>
         </div>
       </div>

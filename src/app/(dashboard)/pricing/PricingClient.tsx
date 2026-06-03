@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Script from 'next/script';
 import { motion } from 'framer-motion';
 import { Loader2, Sparkles, Check, Gem, CreditCard, Coins } from 'lucide-react';
+import { usePostHog } from 'posthog-js/react';
+import * as Sentry from '@sentry/nextjs';
 
 interface PricingClientProps {
   userEmail: string;
@@ -13,10 +15,14 @@ interface PricingClientProps {
 export default function PricingClient({ userEmail, userId }: PricingClientProps) {
   const [isSubProcessing, setIsSubProcessing] = useState(false);
   const [isOneTimeProcessing, setIsOneTimeProcessing] = useState(false);
+  const posthog = usePostHog();
 
   // 1. Handle Subscription Checkout
   const handleSubscribe = async () => {
     setIsSubProcessing(true);
+    if (posthog) {
+      posthog.capture('checkout_started', { type: 'subscription', price: 49900 });
+    }
     
     try {
       const res = await fetch('/api/razorpay/create-subscription', { method: 'POST' });
@@ -41,11 +47,17 @@ export default function PricingClient({ userEmail, userId }: PricingClientProps)
           color: "#6366f1",
         },
         handler: function () {
+          if (posthog) {
+            posthog.capture('checkout_completed', { type: 'subscription', price: 49900 });
+          }
           alert("Payment Successful! Your subscription is active.");
           window.location.href = '/dashboard';
         },
         modal: {
           ondismiss: function() {
+            if (posthog) {
+              posthog.capture('checkout_abandoned', { type: 'subscription' });
+            }
             setIsSubProcessing(false);
           }
         }
@@ -54,6 +66,9 @@ export default function PricingClient({ userEmail, userId }: PricingClientProps)
       const rzp = new window.Razorpay(options);
       
       rzp.on('payment.failed', function (response: any) {
+        if (posthog) {
+          posthog.capture('checkout_failed', { type: 'subscription', error: response.error.description });
+        }
         alert(`Subscription Payment Failed: ${response.error.description}`);
         setIsSubProcessing(false);
       });
@@ -61,6 +76,7 @@ export default function PricingClient({ userEmail, userId }: PricingClientProps)
       rzp.open();
     } catch (error: any) {
       console.error(error);
+      Sentry.captureException(error);
       alert(error.message || "Subscription initialization failed. Please try again.");
       setIsSubProcessing(false);
     }
@@ -69,6 +85,9 @@ export default function PricingClient({ userEmail, userId }: PricingClientProps)
   // 2. Handle One-Time Credit Pack Checkout
   const handlePurchaseCredits = async () => {
     setIsOneTimeProcessing(true);
+    if (posthog) {
+      posthog.capture('checkout_started', { type: 'one_time_credits', price: 9900 });
+    }
 
     try {
       // Create order: ₹99 = 9900 paise
@@ -111,6 +130,9 @@ export default function PricingClient({ userEmail, userId }: PricingClientProps)
             const verifyData = await verifyRes.json();
 
             if (verifyRes.ok && verifyData.success) {
+              if (posthog) {
+                posthog.capture('checkout_completed', { type: 'one_time_credits', price: 9900 });
+              }
               alert(`Payment Verified successfully! 100 credits added to your profile. (New Total: ${verifyData.newCredits} credits)`);
               window.location.reload();
             } else {
@@ -118,6 +140,7 @@ export default function PricingClient({ userEmail, userId }: PricingClientProps)
             }
           } catch (err: any) {
             console.error('Signature verification error:', err);
+            Sentry.captureException(err);
             alert(err.message || 'Payment verification failed. Your account details could not be updated.');
           } finally {
             setIsOneTimeProcessing(false);
@@ -125,6 +148,9 @@ export default function PricingClient({ userEmail, userId }: PricingClientProps)
         },
         modal: {
           ondismiss: function() {
+            if (posthog) {
+              posthog.capture('checkout_abandoned', { type: 'one_time_credits' });
+            }
             setIsOneTimeProcessing(false);
           }
         }
@@ -133,6 +159,9 @@ export default function PricingClient({ userEmail, userId }: PricingClientProps)
       const rzp = new window.Razorpay(options);
 
       rzp.on('payment.failed', function (response: any) {
+        if (posthog) {
+          posthog.capture('checkout_failed', { type: 'one_time_credits', error: response.error.description });
+        }
         alert(`Credit Purchase Failed: ${response.error.description}`);
         setIsOneTimeProcessing(false);
       });
@@ -140,6 +169,7 @@ export default function PricingClient({ userEmail, userId }: PricingClientProps)
       rzp.open();
     } catch (error: any) {
       console.error(error);
+      Sentry.captureException(error);
       alert(error.message || "Order initialization failed. Please try again.");
       setIsOneTimeProcessing(false);
     }

@@ -3,6 +3,8 @@ import { google } from '@/utils/google';
 import { embed, streamText } from 'ai';
 
 import { createClient as createSupabaseServerClient } from '@/utils/supabase/server';
+import { isRateLimited } from '@/utils/ratelimit';
+import * as Sentry from '@sentry/nextjs';
 
 
 export async function POST(req: Request) {
@@ -13,6 +15,15 @@ export async function POST(req: Request) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Rate Limiting Safeguard
+    const rateLimit = await isRateLimited(`chat:${user.id}`);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many queries. Please wait a minute before trying again.' },
+        { status: 429 }
+      );
     }
 
     // 2. Parse and validate request parameters
@@ -99,6 +110,7 @@ export async function POST(req: Request) {
       }
     } catch (vectorError) {
       console.error('RAG vector retrieval failed:', vectorError);
+      Sentry.captureException(vectorError);
     }
 
     // 5. Build prompt injecting retrieved course context
@@ -126,6 +138,7 @@ ${contextText}`;
         });
         if (deductError) {
           console.error(`Failed to deduct credit for user ${user.id}:`, deductError);
+          Sentry.captureException(deductError);
         } else {
           console.log(`Deducted 1 credit for user ${user.id} query.`);
         }
@@ -135,6 +148,7 @@ ${contextText}`;
     return result.toTextStreamResponse();
   } catch (error: any) {
     console.error('AI Chat Error:', error);
+    Sentry.captureException(error);
     return NextResponse.json({ error: error.message || 'Failed to generate AI response' }, { status: 500 });
   }
 }

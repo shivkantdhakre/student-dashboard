@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from '@ai-sdk/react';
+import { usePostHog } from 'posthog-js/react';
 
 import { DefaultChatTransport } from 'ai';
 import { Course } from '@/types/database.types';
@@ -39,6 +40,7 @@ export function AICopilot({ initialCourses }: AICopilotProps) {
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const posthog = usePostHog();
   
   // Set default selected course if available
   useEffect(() => {
@@ -110,13 +112,19 @@ export function AICopilot({ initialCourses }: AICopilotProps) {
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
+  const handleSendMessage = async (text: string) => {
+    if (posthog) {
+      posthog.capture('ai_message_sent', { course_id: selectedCourseId });
+    }
+    await sendMessage({ text });
+  };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || isLoading || initialCourses.length === 0) return;
     const textToSend = inputValue.trim();
     setInputValue('');
-    await sendMessage({ text: textToSend });
+    await handleSendMessage(textToSend);
   };
 
   // Clear chat logs when course changes
@@ -261,13 +269,13 @@ export function AICopilot({ initialCourses }: AICopilotProps) {
                   {activeCourse && (
                     <div className="flex flex-col gap-2 w-full pt-4">
                       <button
-                        onClick={() => sendMessage({ text: `Summarize the course syllabus of "${activeCourse.title}"` })}
+                        onClick={() => handleSendMessage(`Summarize the course syllabus of "${activeCourse.title}"`)}
                         className="text-left bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-[10px] text-slate-300 hover:border-indigo-500/30 hover:bg-indigo-950/10 hover:text-white transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer animate-none"
                       >
                         💡 Summarize the course syllabus
                       </button>
                       <button
-                        onClick={() => sendMessage({ text: `What are the key topics in "${activeCourse.title}"?` })}
+                        onClick={() => handleSendMessage(`What are the key topics in "${activeCourse.title}"?`)}
                         className="text-left bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-[10px] text-slate-300 hover:border-indigo-500/30 hover:bg-indigo-950/10 hover:text-white transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer animate-none"
                       >
                         💡 What are the key topics?
