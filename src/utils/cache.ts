@@ -1,17 +1,13 @@
 import { unstable_cache } from 'next/cache';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { Database, Course, Profile } from '@/types/database.types';
-
-const supabaseAnon = createSupabaseClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { createClient } from '@/utils/supabase/server';
+import { Course, Profile } from '@/types/database.types';
 
 // Cache user's course list
 export const getCachedCourses = (userId: string): Promise<Course[]> => {
   return unstable_cache(
     async (): Promise<Course[]> => {
-      const { data, error } = await supabaseAnon
+      const supabase = await createClient();
+      const { data, error } = await supabase
         .from('courses')
         .select('*')
         .eq('user_id', userId)
@@ -31,22 +27,20 @@ export const getCachedCourses = (userId: string): Promise<Course[]> => {
 };
 
 // Cache user's profile info (e.g. credits, subscription tier)
-export const getCachedProfile = (userId: string): Promise<Profile> => {
+export const getCachedProfile = (userId: string): Promise<Profile | null> => {
   return unstable_cache(
-    async (): Promise<Profile> => {
-      const { data, error } = await supabaseAnon
+    async (): Promise<Profile | null> => {
+      const supabase = await createClient();
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       if (error) {
         throw new Error(`Failed to fetch cached profile: ${error.message}`);
       }
-      if (!data) {
-        throw new Error('Profile not found');
-      }
-      return data as Profile;
+      return data;
     },
     [`user-profile-${userId}`],
     {
@@ -55,3 +49,4 @@ export const getCachedProfile = (userId: string): Promise<Profile> => {
     }
   )();
 };
+
